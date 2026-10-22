@@ -17,6 +17,9 @@ const ShellFlavor = "com.superlogical.terminal.shell"
 // MaxLabel is the longest label Rex accepts for sessions and windows.
 const MaxLabel = 128
 
+// MaxWindows is the most windows Rex allows in one session.
+const MaxWindows = 64
+
 // CreateSession is the argument object for the session.create API method.
 type CreateSession struct {
 	Label          string   `json:"label,omitempty"`

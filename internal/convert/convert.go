@@ -1,7 +1,8 @@
 // Package convert turns a cmux sidebar layout into Rex session.create requests.
 //
 // Mapping:
-//   - each cmux workspace (sidebar entry) becomes a Rex session, in sidebar order;
+//   - each cmux workspace (sidebar entry) becomes a Rex session, in sidebar order,
+//     or with ByGroup, a window in its sidebar group's session;
 //   - a workspace's split tree becomes the first Rex window, showing each pane's
 //     selected tab;
 //   - every other tab in a pane becomes its own Rex window, because Rex panes
@@ -26,6 +27,8 @@ type Options struct {
 	Groups []string
 	// GroupPrefix prefixes each session label with its sidebar group, as "group/title".
 	GroupPrefix bool
+	// ByGroup makes one session per sidebar group, with each workspace as a window.
+	ByGroup bool
 	// ResumeAgents types each terminal's saved agent resume command into its new shell.
 	ResumeAgents bool
 }
@@ -44,6 +47,8 @@ func Convert(s *cmux.Session, opts Options) Plan {
 		wanted[g] = true
 	}
 	used := map[string]int{}
+	groupSession := map[string]int{}
+	groupParts := map[string]int{}
 
 	for _, win := range s.Windows {
 		groups := map[string]string{}
@@ -71,6 +76,30 @@ func Convert(s *cmux.Session, opts Options) Plan {
 				plan.Warnings = append(plan.Warnings, fmt.Sprintf("%s: skipped, no terminal tabs", title))
 				continue
 			}
+			if opts.ByGroup {
+				if group == "" {
+					group = UngroupedLabel
+				}
+				windows[0].Label = truncate(title)
+				for i := 1; i < len(windows); i++ {
+					windows[i].Label = truncate(title + " · " + windows[i].Label)
+				}
+				// Start another session for the group when this workspace's
+				// windows would push it past Rex's window limit.
+				i, ok := groupSession[group]
+				if !ok || len(plan.Sessions[i].InitialWindows)+len(windows) > rex.MaxWindows {
+					groupParts[group]++
+					label := group
+					if groupParts[group] > 1 {
+						label = fmt.Sprintf("%s %d", group, groupParts[group])
+					}
+					i = len(plan.Sessions)
+					groupSession[group] = i
+					plan.Sessions = append(plan.Sessions, rex.CreateSession{Label: uniqueLabel(truncate(label), used)})
+				}
+				plan.Sessions[i].InitialWindows = append(plan.Sessions[i].InitialWindows, windows...)
+				continue
+			}
 			label := title
 			if opts.GroupPrefix && group != "" {
 				label = group + "/" + title
@@ -81,8 +110,30 @@ func Convert(s *cmux.Session, opts Options) Plan {
 			})
 		}
 	}
+	plan.Sessions = splitOversized(plan.Sessions, used)
 	return plan
 }
+
+// splitOversized breaks any session with more windows than Rex allows into
+// numbered sessions, keeping window order.
+func splitOversized(sessions []rex.CreateSession, used map[string]int) []rex.CreateSession {
+	var out []rex.CreateSession
+	for _, s := range sessions {
+		for part := 1; len(s.InitialWindows) > 0; part++ {
+			n := min(len(s.InitialWindows), rex.MaxWindows)
+			label := s.Label
+			if part > 1 {
+				label = uniqueLabel(truncate(fmt.Sprintf("%s %d", s.Label, part)), used)
+			}
+			out = append(out, rex.CreateSession{Label: label, InitialWindows: s.InitialWindows[:n]})
+			s.InitialWindows = s.InitialWindows[n:]
+		}
+	}
+	return out
+}
+
+// UngroupedLabel names the session that holds workspaces outside any sidebar group.
+const UngroupedLabel = "ungrouped"
 
 type workspaceConverter struct {
 	ws       cmux.Workspace

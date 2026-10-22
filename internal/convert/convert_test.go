@@ -111,6 +111,35 @@ func TestConvertOptions(t *testing.T) {
 	}
 }
 
+func TestConvertByGroup(t *testing.T) {
+	plan := Convert(decode(t), Options{ByGroup: true})
+	if len(plan.Sessions) != 2 {
+		t.Fatalf("got %d sessions, want 2", len(plan.Sessions))
+	}
+	orka, misc := plan.Sessions[0], plan.Sessions[1]
+	if orka.Label != "orka" || len(orka.InitialWindows) != 2 {
+		t.Fatalf("orka = %q with %d windows", orka.Label, len(orka.InitialWindows))
+	}
+	if got := orka.InitialWindows[0].Label; got != "scout" {
+		t.Errorf("workspace window label = %q, want scout", got)
+	}
+	if got := orka.InitialWindows[1].Label; got != "scout · ~" {
+		t.Errorf("extra tab window label = %q", got)
+	}
+	if misc.Label != "misc" || len(misc.InitialWindows) != 1 || misc.InitialWindows[0].Label != "scout" {
+		t.Errorf("misc = %+v", misc)
+	}
+}
+
+func TestSplitOversized(t *testing.T) {
+	windows := make([]rex.Window, rex.MaxWindows+3)
+	got := splitOversized([]rex.CreateSession{{Label: "orka", InitialWindows: windows}}, map[string]int{"orka": 1})
+	if len(got) != 2 || got[0].Label != "orka" || got[1].Label != "orka 2" ||
+		len(got[0].InitialWindows) != rex.MaxWindows || len(got[1].InitialWindows) != 3 {
+		t.Fatalf("got %d sessions: %q/%d, %q/%d", len(got), got[0].Label, len(got[0].InitialWindows), got[1].Label, len(got[1].InitialWindows))
+	}
+}
+
 func TestPlanMatchesRexSchema(t *testing.T) {
 	plan := Convert(decode(t), Options{})
 	data, err := json.Marshal(plan.Sessions[0])

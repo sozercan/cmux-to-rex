@@ -92,6 +92,7 @@ func runConvert(args []string) error {
 	var opts convert.Options
 	fs.Var((*stringList)(&opts.Groups), "group", "only convert workspaces in this sidebar group (repeatable)")
 	fs.BoolVar(&opts.GroupPrefix, "group-prefix", false, `label sessions "group/title" to keep sidebar groups`)
+	fs.BoolVar(&opts.ByGroup, "by-group", false, "one session per sidebar group, each workspace a tab (Rex allows 64 sessions)")
 	fs.BoolVar(&opts.ResumeAgents, "resume-agents", false, "type each tab's saved agent resume command into its shell")
 	fs.Parse(args)
 

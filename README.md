@@ -26,9 +26,17 @@ Only terminal tabs are converted; browser and other tabs are reported as warning
 
 - `--group NAME` (repeatable): only convert workspaces in these sidebar groups.
 - `--group-prefix`: label sessions `group/title`, since Rex has no sidebar groups.
+- `--by-group`: one session per sidebar group, each workspace a tab (extra pane tabs
+  are labelled `workspace · tab`). Use this when you have more than 64 workspaces.
 - `--resume-agents`: type each tab's saved cmux agent resume command (for example
   `claude --resume <id>`) into its new shell. Off by default. Agent environment
   variables are never copied.
+
+## Rex limits
+
+Rex allows 64 sessions per server and 64 windows per session. Sessions with more
+windows are split into numbered sessions (`orka`, `orka 2`), keeping each
+workspace's windows together.
 
 ## Safety
 
